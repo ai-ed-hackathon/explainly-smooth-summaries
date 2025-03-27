@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,7 +55,7 @@ const SummaryView: React.FC<SummaryViewProps> = ({
 
         <Card>
           <CardHeader>
-            <CardTitle>Key Concepts</CardTitle>
+            <CardTitle>Exercises</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="list-disc pl-5 space-y-2 text-explainly-text-gray">
