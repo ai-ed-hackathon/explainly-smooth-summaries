@@ -13,16 +13,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Upload } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { v4 as uuidv4 } from "uuid";
 
 interface UploadModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onUploadSuccess: () => void;
 }
 
 const UploadModal: React.FC<UploadModalProps> = ({ 
   open, 
-  onOpenChange 
+  onOpenChange,
+  onUploadSuccess 
 }) => {
+  const { user } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [isUploading, setIsUploading] = useState(false);
@@ -33,23 +39,66 @@ const UploadModal: React.FC<UploadModalProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const readFileContent = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => resolve(event.target?.result as string);
+      reader.onerror = (error) => reject(error);
+      reader.readAsText(file);
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) {
+    if (!file || !user) {
       toast.error("Please select a file to upload");
       return;
     }
 
     setIsUploading(true);
     
-    // Simulate upload process
-    setTimeout(() => {
-      setIsUploading(false);
+    try {
+      // 1. Read file content
+      const content = await readFileContent(file);
+      
+      // 2. Generate a unique file path
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${uuidv4()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+      
+      // 3. Upload file to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('transcript_files')
+        .upload(filePath, file);
+        
+      if (uploadError) throw uploadError;
+      
+      // 4. Create transcript record in database
+      const { error: dbError } = await supabase
+        .from('transcripts')
+        .insert({
+          title,
+          content,
+          user_id: user.id,
+          file_path: filePath,
+          file_type: file.type,
+          file_size: file.size,
+          status: 'completed' // For simplicity, setting as completed immediately
+        });
+        
+      if (dbError) throw dbError;
+      
       toast.success("Transcript uploaded successfully");
+      onUploadSuccess();
       onOpenChange(false);
       setFile(null);
       setTitle("");
-    }, 1500);
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast.error(error.message || "Failed to upload transcript");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (

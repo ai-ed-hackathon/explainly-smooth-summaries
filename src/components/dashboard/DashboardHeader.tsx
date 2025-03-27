@@ -11,16 +11,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Logo from "../Logo";
-import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
-const DashboardHeader: React.FC = () => {
-  const handleUpload = () => {
-    toast.success("Upload functionality will be implemented soon");
-  };
+interface DashboardHeaderProps {
+  onUploadClick: () => void;
+}
 
-  const handleLogout = () => {
-    toast.info("Logout functionality will be implemented with Supabase");
-  };
+const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onUploadClick }) => {
+  const { signOut, user } = useAuth();
 
   return (
     <header className="w-full py-3 px-4 border-b border-border flex items-center justify-between bg-white">
@@ -28,7 +26,7 @@ const DashboardHeader: React.FC = () => {
       
       <div className="flex items-center gap-3">
         <Button 
-          onClick={handleUpload}
+          onClick={onUploadClick}
           className="explainly-gradient-bg"
           size="sm"
         >
@@ -45,10 +43,11 @@ const DashboardHeader: React.FC = () => {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Profile</DropdownMenuItem>
-            <DropdownMenuItem>Settings</DropdownMenuItem>
+            <DropdownMenuItem className="text-xs text-gray-500 py-2">
+              {user?.email}
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}>
+            <DropdownMenuItem onClick={() => signOut()}>
               Log out
             </DropdownMenuItem>
           </DropdownMenuContent>

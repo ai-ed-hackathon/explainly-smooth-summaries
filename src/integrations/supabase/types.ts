@@ -30,6 +30,173 @@ export type Database = {
         }
         Relationships: []
       }
+      key_concepts: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          summary_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          summary_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          summary_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "key_concepts_summary_id_fkey"
+            columns: ["summary_id"]
+            isOneToOne: false
+            referencedRelation: "summaries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      quiz_questions: {
+        Row: {
+          correct_answer: string
+          created_at: string
+          id: string
+          incorrect_answers: Json
+          question: string
+          summary_id: string
+        }
+        Insert: {
+          correct_answer: string
+          created_at?: string
+          id?: string
+          incorrect_answers: Json
+          question: string
+          summary_id: string
+        }
+        Update: {
+          correct_answer?: string
+          created_at?: string
+          id?: string
+          incorrect_answers?: Json
+          question?: string
+          summary_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_questions_summary_id_fkey"
+            columns: ["summary_id"]
+            isOneToOne: false
+            referencedRelation: "summaries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      summaries: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          transcript_id: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          transcript_id: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          transcript_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "summaries_transcript_id_fkey"
+            columns: ["transcript_id"]
+            isOneToOne: false
+            referencedRelation: "transcripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transcripts: {
+        Row: {
+          content: string
+          created_at: string
+          file_path: string | null
+          file_size: number | null
+          file_type: string | null
+          id: string
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          file_path?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          file_path?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transcripts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
