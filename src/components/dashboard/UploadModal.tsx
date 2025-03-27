@@ -48,6 +48,28 @@ const UploadModal: React.FC<UploadModalProps> = ({
     });
   };
 
+  const triggerN8NWorkflow = async (filePath: string) => {
+    try {
+      const response = await fetch("https://almanakmap.app.n8n.cloud/webhook/833efd65-7a27-48ca-8628-cb0e16c68e46", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ file_path: filePath }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`N8N webhook failed with status: ${response.status}`);
+      }
+      
+      console.log("N8N workflow triggered successfully");
+      return true;
+    } catch (error) {
+      console.error("Failed to trigger N8N workflow:", error);
+      throw error;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file || !user) {
@@ -74,7 +96,7 @@ const UploadModal: React.FC<UploadModalProps> = ({
       if (uploadError) throw uploadError;
       
       // 4. Create transcript record in database
-      const { error: dbError } = await supabase
+      const { data: transcriptData, error: dbError } = await supabase
         .from('transcripts')
         .insert({
           title,
@@ -83,12 +105,17 @@ const UploadModal: React.FC<UploadModalProps> = ({
           file_path: filePath,
           file_type: file.type,
           file_size: file.size,
-          status: 'completed' // For simplicity, setting as completed immediately
-        });
+          status: 'pending' // Set as pending since processing will happen in N8N
+        })
+        .select()
+        .single();
         
       if (dbError) throw dbError;
       
-      toast.success("Transcript uploaded successfully");
+      // 5. Trigger N8N workflow with the file path
+      await triggerN8NWorkflow(filePath);
+      
+      toast.success("Transcript uploaded and processing initiated");
       onUploadSuccess();
       onOpenChange(false);
       setFile(null);
