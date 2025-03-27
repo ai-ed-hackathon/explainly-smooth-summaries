@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import UploadModal from "@/components/dashboard/UploadModal";
 import { format } from "date-fns";
+import { Json } from "@/integrations/supabase/types";
 
 interface Transcript {
   id: string;
@@ -35,6 +36,22 @@ interface QuizQuestion {
   correct_answer: string;
   incorrect_answers: string[];
 }
+
+// Helper function to parse JSONB from Supabase
+const parseJsonArray = (jsonData: Json): string[] => {
+  if (Array.isArray(jsonData)) {
+    return jsonData as string[];
+  }
+  if (typeof jsonData === 'string') {
+    try {
+      const parsed = JSON.parse(jsonData);
+      return Array.isArray(parsed) ? parsed : [jsonData];
+    } catch (e) {
+      return [jsonData];
+    }
+  }
+  return [];
+};
 
 const ViewSummary: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -87,8 +104,15 @@ const ViewSummary: React.FC = () => {
             .select('*')
             .eq('summary_id', summaryData.id);
             
-          if (!quizError) {
-            setQuizQuestions(quizData || []);
+          if (!quizError && quizData) {
+            // Transform the quiz data to match our QuizQuestion interface
+            const formattedQuizData = quizData.map(quiz => ({
+              id: quiz.id,
+              question: quiz.question,
+              correct_answer: quiz.correct_answer,
+              incorrect_answers: parseJsonArray(quiz.incorrect_answers)
+            }));
+            setQuizQuestions(formattedQuizData);
           }
         } else {
           // We'll create a dummy summary when there's none yet
@@ -180,7 +204,16 @@ const ViewSummary: React.FC = () => {
           .select('*')
           .eq('summary_id', summaryData.id);
           
-        setQuizQuestions(quizData || []);
+        if (quizData) {
+          // Transform the quiz data to match our QuizQuestion interface
+          const formattedQuizData = quizData.map(quiz => ({
+            id: quiz.id,
+            question: quiz.question,
+            correct_answer: quiz.correct_answer,
+            incorrect_answers: parseJsonArray(quiz.incorrect_answers)
+          }));
+          setQuizQuestions(formattedQuizData);
+        }
       }
     } catch (error) {
       console.error('Error refreshing data:', error);
@@ -310,9 +343,7 @@ const ViewSummary: React.FC = () => {
                         {quizQuestions.map((quiz) => {
                           const allAnswers = [
                             quiz.correct_answer,
-                            ...(typeof quiz.incorrect_answers === 'object' ? 
-                              quiz.incorrect_answers : 
-                              JSON.parse(quiz.incorrect_answers as unknown as string))
+                            ...quiz.incorrect_answers
                           ].sort(() => Math.random() - 0.5);
                           
                           return (
