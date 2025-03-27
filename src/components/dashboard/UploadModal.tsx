@@ -39,13 +39,22 @@ const UploadModal: React.FC<UploadModalProps> = ({
     }
   };
 
-  const readFileContent = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (event) => resolve(event.target?.result as string);
-      reader.onerror = (error) => reject(error);
-      reader.readAsText(file);
-    });
+  // Modified to handle different file types appropriately
+  const readFileContent = async (file: File): Promise<string> => {
+    // If it's a text file, read as text
+    if (file.type === 'text/plain') {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target?.result as string);
+        reader.onerror = (error) => reject(error);
+        reader.readAsText(file);
+      });
+    } 
+    // For non-text files, we don't try to read the content as text
+    // Instead, return a placeholder message
+    else {
+      return `[Binary content of type ${file.type}]`;
+    }
   };
 
   const triggerN8NWorkflow = async (filePath: string) => {
@@ -80,20 +89,26 @@ const UploadModal: React.FC<UploadModalProps> = ({
     setIsUploading(true);
     
     try {
-      // 1. Read file content
-      const content = await readFileContent(file);
-      
-      // 2. Generate a unique file path
+      // 1. Generate a unique file path
       const fileExt = file.name.split('.').pop();
       const fileName = `${uuidv4()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
       
-      // 3. Upload file to Supabase Storage
+      // 2. Upload file to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('transcript_files')
         .upload(filePath, file);
         
       if (uploadError) throw uploadError;
+      
+      // 3. Read content if it's a text file, otherwise use placeholder
+      let content = "";
+      try {
+        content = await readFileContent(file);
+      } catch (error) {
+        console.warn("Could not read file content:", error);
+        content = `[Content of ${file.name} couldn't be processed for preview]`;
+      }
       
       // 4. Create transcript record in database
       const { data: transcriptData, error: dbError } = await supabase
