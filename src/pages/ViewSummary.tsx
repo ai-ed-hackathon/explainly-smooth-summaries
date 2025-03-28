@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Trash2 } from "lucide-react";
 import { deleteTranscript } from "@/utils/transcriptUtils";
-import { useNavigate } from "react-router-dom";
 
 // Define the types we need
 interface Transcript {
@@ -38,10 +37,14 @@ interface Exercise {
 interface QuizQuestion {
   id: string;
   question: string;
-  correct_answer: string;
-  incorrect_answers: string[];
+  correctAnswer: string;
+  incorrectAnswers: string[];
   summary_id: string;
 }
+
+// Import types from Supabase if needed
+import type { Database } from "@/integrations/supabase/types";
+type Json = Database["public"]["Tables"]["quiz_questions"]["Row"]["incorrect_answers"];
 
 const ViewSummary = () => {
   const { id } = useParams<{ id: string }>();
@@ -78,7 +81,7 @@ const ViewSummary = () => {
       if (summaryError && summaryError.code !== 'PGRST116') throw summaryError;
       setSummary(summaryData || null);
 
-      // If summary exists, fetch key concepts (renamed to exercises) and quiz questions
+      // If summary exists, fetch exercises (previously key concepts) and quiz questions
       if (summaryData) {
         // Fetch exercises (previously key concepts)
         const { data: exercisesData, error: exercisesError } = await supabase
@@ -96,7 +99,23 @@ const ViewSummary = () => {
           .eq('summary_id', summaryData.id);
           
         if (quizError) throw quizError;
-        setQuizQuestions(quizData || []);
+        
+        // Transform the quiz data to match the expected QuizQuestion type
+        if (quizData) {
+          const formattedQuizQuestions: QuizQuestion[] = quizData.map(q => ({
+            id: q.id,
+            question: q.question,
+            correctAnswer: q.correct_answer,
+            incorrectAnswers: Array.isArray(q.incorrect_answers) 
+              ? q.incorrect_answers as string[] 
+              : typeof q.incorrect_answers === 'object' 
+                ? Object.values(q.incorrect_answers as object) as string[]
+                : [q.incorrect_answers as string],
+            summary_id: q.summary_id
+          }));
+          
+          setQuizQuestions(formattedQuizQuestions);
+        }
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -223,11 +242,7 @@ const ViewSummary = () => {
                   title={transcript.title}
                   summaryContent={summary.content}
                   exercises={exercises.map(ex => ex.content)}
-                  quizQuestions={quizQuestions.map(q => ({
-                    question: q.question,
-                    correctAnswer: q.correct_answer,
-                    incorrectAnswers: q.incorrect_answers as string[]
-                  }))}
+                  quizQuestions={quizQuestions}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center h-full p-6">
