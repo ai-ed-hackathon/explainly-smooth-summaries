@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +12,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Trash2, Clock } from "lucide-react";
 import { deleteTranscript } from "@/utils/transcriptUtils";
 import { Progress } from "@/components/ui/progress";
+
+type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
 
 interface Transcript {
   id: string;
@@ -154,12 +157,13 @@ const ViewSummary = () => {
   useEffect(() => {
     fetchData();
     
+    // Only set up the refresh interval if we're still in 'pending' state
     let refreshInterval: number | null = null;
     
     if (transcript?.status === 'pending' && !summary) {
       refreshInterval = window.setInterval(() => {
         fetchData();
-      }, 30000);
+      }, 30000); // Check every 30 seconds
     }
     
     return () => {
@@ -170,7 +174,8 @@ const ViewSummary = () => {
         window.clearInterval(processingInterval);
       }
     };
-  }, [id, summary]);
+  // Only re-run this effect when the ID changes or when summary state changes
+  }, [id]);
 
   const createDummySummary = async (transcript: Transcript) => {
     try {
