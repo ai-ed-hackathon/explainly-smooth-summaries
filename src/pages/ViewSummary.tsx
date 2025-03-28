@@ -1,4 +1,115 @@
 
+import React, { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import DashboardHeader from "@/components/dashboard/DashboardHeader";
+import Sidebar from "@/components/dashboard/Sidebar";
+import SummaryView from "@/components/dashboard/SummaryView";
+import UploadModal from "@/components/dashboard/UploadModal";
+import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Trash2 } from "lucide-react";
+import { deleteTranscript } from "@/utils/transcriptUtils";
+import { useNavigate } from "react-router-dom";
+
+// Define the types we need
+interface Transcript {
+  id: string;
+  title: string;
+  content: string;
+  file_path: string | null;
+  created_at: string;
+}
+
+interface Summary {
+  id: string;
+  content: string;
+  transcript_id: string;
+  created_at: string;
+}
+
+interface Exercise {
+  id: string;
+  content: string;
+  summary_id: string;
+}
+
+interface QuizQuestion {
+  id: string;
+  question: string;
+  correct_answer: string;
+  incorrect_answers: string[];
+  summary_id: string;
+}
+
+const ViewSummary = () => {
+  const { id } = useParams<{ id: string }>();
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [transcript, setTranscript] = useState<Transcript | null>(null);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      if (!id) return;
+
+      // Fetch transcript
+      const { data: transcriptData, error: transcriptError } = await supabase
+        .from('transcripts')
+        .select('*')
+        .eq('id', id)
+        .single();
+        
+      if (transcriptError) throw transcriptError;
+      setTranscript(transcriptData);
+
+      // Fetch summary
+      const { data: summaryData, error: summaryError } = await supabase
+        .from('summaries')
+        .select('*')
+        .eq('transcript_id', id)
+        .single();
+        
+      if (summaryError && summaryError.code !== 'PGRST116') throw summaryError;
+      setSummary(summaryData || null);
+
+      // If summary exists, fetch key concepts (renamed to exercises) and quiz questions
+      if (summaryData) {
+        // Fetch exercises (previously key concepts)
+        const { data: exercisesData, error: exercisesError } = await supabase
+          .from('key_concepts')
+          .select('*')
+          .eq('summary_id', summaryData.id);
+          
+        if (exercisesError) throw exercisesError;
+        setExercises(exercisesData || []);
+
+        // Fetch quiz questions
+        const { data: quizData, error: quizError } = await supabase
+          .from('quiz_questions')
+          .select('*')
+          .eq('summary_id', summaryData.id);
+          
+        if (quizError) throw quizError;
+        setQuizQuestions(quizData || []);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast.error("Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [id]);
+
   // This function simulates summary generation
   // In a real app, this would be done with an AI service
   const createDummySummary = async (transcript: Transcript) => {
@@ -44,3 +155,110 @@
       toast.error("Failed to generate summary");
     }
   };
+
+  const handleDeleteTranscript = async () => {
+    if (!transcript) return;
+    
+    const success = await deleteTranscript(transcript.id, transcript.file_path);
+    if (success) {
+      toast.success("Transcript deleted successfully");
+      navigate("/dashboard");
+    }
+  };
+
+  return (
+    <div className="flex h-screen flex-col">
+      <DashboardHeader onUploadClick={() => setIsUploadModalOpen(true)} />
+      
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar />
+        
+        <div className="flex-1 overflow-auto">
+          {loading ? (
+            <div className="flex h-full items-center justify-center">
+              <div className="animate-spin h-8 w-8 border-4 border-explainly-blue border-t-transparent rounded-full"></div>
+            </div>
+          ) : transcript ? (
+            <div className="h-full flex flex-col">
+              <div className="border-b border-border">
+                <div className="flex items-center justify-between p-4">
+                  <h1 className="text-2xl font-bold">{transcript.title}</h1>
+                  <div className="flex items-center gap-2">
+                    {!summary && (
+                      <Button 
+                        onClick={() => createDummySummary(transcript)}
+                        className="explainly-gradient-bg"
+                      >
+                        Generate Summary
+                      </Button>
+                    )}
+                    
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="icon">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Transcript</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently delete this transcript, its summary, exercises, and quiz questions. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleDeleteTranscript}>
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
+              </div>
+              
+              {summary ? (
+                <SummaryView 
+                  title={transcript.title}
+                  summaryContent={summary.content}
+                  exercises={exercises.map(ex => ex.content)}
+                  quizQuestions={quizQuestions.map(q => ({
+                    question: q.question,
+                    correctAnswer: q.correct_answer,
+                    incorrectAnswers: q.incorrect_answers as string[]
+                  }))}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full p-6">
+                  <h2 className="text-xl font-semibold mb-4">No Summary Generated Yet</h2>
+                  <p className="text-explainly-text-gray mb-6">
+                    This transcript doesn't have a summary yet. Click the button above to generate one.
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full">
+              <h2 className="text-xl font-semibold mb-4">Transcript Not Found</h2>
+              <p className="text-explainly-text-gray mb-6">
+                The transcript you're looking for doesn't exist or you don't have permission to view it.
+              </p>
+              <Button onClick={() => navigate("/dashboard")}>
+                Back to Dashboard
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      <UploadModal 
+        open={isUploadModalOpen} 
+        onOpenChange={setIsUploadModalOpen}
+        onUploadSuccess={fetchData}
+      />
+    </div>
+  );
+};
+
+export default ViewSummary;

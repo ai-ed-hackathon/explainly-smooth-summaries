@@ -1,15 +1,28 @@
+
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Download, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
+interface QuizQuestion {
+  question: string;
+  correctAnswer: string;
+  incorrectAnswers: string[];
+}
+
 interface SummaryViewProps {
-  title?: string;
+  title: string;
+  summaryContent: string;
+  exercises: string[];
+  quizQuestions: QuizQuestion[];
 }
 
 const SummaryView: React.FC<SummaryViewProps> = ({ 
-  title = "Introduction to Machine Learning" 
+  title,
+  summaryContent,
+  exercises,
+  quizQuestions
 }) => {
   const handleDownload = () => {
     toast.success("Download functionality will be implemented soon");
@@ -18,6 +31,11 @@ const SummaryView: React.FC<SummaryViewProps> = ({
   const handleShare = () => {
     toast.success("Share functionality will be implemented soon");
   };
+
+  // Split summary content into paragraphs if it's a string
+  const summaryParagraphs = typeof summaryContent === 'string' 
+    ? summaryContent.split(/\n+/).filter(Boolean)
+    : ["No summary content available"];
 
   return (
     <div className="h-full p-6 overflow-y-auto">
@@ -41,15 +59,11 @@ const SummaryView: React.FC<SummaryViewProps> = ({
             <CardTitle>Summary</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-explainly-text-gray">
-              Machine Learning (ML) is a subset of Artificial Intelligence that enables computers to learn from data without explicit programming. The lecture introduces fundamental concepts including supervised learning (training models with labeled data) and unsupervised learning (finding patterns in unlabeled data).
-            </p>
-            <p className="text-explainly-text-gray mt-4">
-              Key algorithms discussed include linear regression for predicting continuous values, classification for categorical predictions, and clustering for grouping similar data points. The importance of data preprocessing, feature selection, and model evaluation metrics like accuracy and precision are emphasized throughout the lecture.
-            </p>
-            <p className="text-explainly-text-gray mt-4">
-              The lecture concludes with practical applications of ML in various industries and the ethical considerations surrounding algorithm bias and data privacy.
-            </p>
+            {summaryParagraphs.map((paragraph, index) => (
+              <p key={index} className={`text-explainly-text-gray ${index > 0 ? 'mt-4' : ''}`}>
+                {paragraph}
+              </p>
+            ))}
           </CardContent>
         </Card>
 
@@ -59,12 +73,13 @@ const SummaryView: React.FC<SummaryViewProps> = ({
           </CardHeader>
           <CardContent>
             <ul className="list-disc pl-5 space-y-2 text-explainly-text-gray">
-              <li>Supervised vs. Unsupervised Learning</li>
-              <li>Training and Test Data Splits</li>
-              <li>Feature Selection and Engineering</li>
-              <li>Model Evaluation Metrics</li>
-              <li>Overfitting and Underfitting</li>
-              <li>Ethical Considerations in ML</li>
+              {exercises.length > 0 ? (
+                exercises.map((exercise, index) => (
+                  <li key={index}>{exercise}</li>
+                ))
+              ) : (
+                <li>No exercises available</li>
+              )}
             </ul>
           </CardContent>
         </Card>
@@ -75,41 +90,31 @@ const SummaryView: React.FC<SummaryViewProps> = ({
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              <div>
-                <h3 className="font-medium mb-2">What is the main difference between supervised and unsupervised learning?</h3>
-                <div className="space-y-2">
-                  <div className="flex items-start gap-2">
-                    <div className="h-5 w-5 rounded-full border border-explainly-blue flex-shrink-0 mt-0.5"></div>
-                    <p className="text-sm">Supervised learning requires human supervision, while unsupervised does not</p>
+              {quizQuestions.length > 0 ? (
+                quizQuestions.map((quiz, quizIndex) => (
+                  <div key={quizIndex}>
+                    <h3 className="font-medium mb-2">{quiz.question}</h3>
+                    <div className="space-y-2">
+                      {/* Combine correct and incorrect answers and randomize */}
+                      {[
+                        { text: quiz.correctAnswer, isCorrect: true },
+                        ...(quiz.incorrectAnswers || []).map(text => ({ text, isCorrect: false }))
+                      ].map((answer, answerIndex) => (
+                        <div key={answerIndex} className="flex items-start gap-2">
+                          <div 
+                            className={`h-5 w-5 rounded-full border border-explainly-blue ${answer.isCorrect ? 'bg-explainly-blue' : ''} flex-shrink-0 mt-0.5`}
+                          ></div>
+                          <p className={`text-sm ${answer.isCorrect ? 'font-medium' : ''}`}>
+                            {answer.text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex items-start gap-2">
-                    <div className="h-5 w-5 rounded-full border border-explainly-blue bg-explainly-blue flex-shrink-0 mt-0.5"></div>
-                    <p className="text-sm font-medium">Supervised learning uses labeled data, while unsupervised learning uses unlabeled data</p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <div className="h-5 w-5 rounded-full border border-explainly-blue flex-shrink-0 mt-0.5"></div>
-                    <p className="text-sm">Supervised learning is used for prediction, while unsupervised is used for classification only</p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-medium mb-2">Which of the following is NOT a common evaluation metric for classification models?</h3>
-                <div className="space-y-2">
-                  <div className="flex items-start gap-2">
-                    <div className="h-5 w-5 rounded-full border border-explainly-blue flex-shrink-0 mt-0.5"></div>
-                    <p className="text-sm">Precision</p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <div className="h-5 w-5 rounded-full border border-explainly-blue flex-shrink-0 mt-0.5"></div>
-                    <p className="text-sm">Recall</p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <div className="h-5 w-5 rounded-full border border-explainly-blue bg-explainly-blue flex-shrink-0 mt-0.5"></div>
-                    <p className="text-sm font-medium">Mean Squared Error</p>
-                  </div>
-                </div>
-              </div>
+                ))
+              ) : (
+                <p className="text-explainly-text-gray">No quiz questions available</p>
+              )}
             </div>
           </CardContent>
         </Card>
