@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,16 +8,17 @@ import SummaryView from "@/components/dashboard/SummaryView";
 import UploadModal from "@/components/dashboard/UploadModal";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Trash2 } from "lucide-react";
+import { Trash2, Clock } from "lucide-react";
 import { deleteTranscript } from "@/utils/transcriptUtils";
+import { Progress } from "@/components/ui/progress";
 
-// Define the types we need
 interface Transcript {
   id: string;
   title: string;
   content: string;
   file_path: string | null;
   created_at: string;
+  status: string;
 }
 
 interface Summary {
@@ -42,10 +42,6 @@ interface QuizQuestion {
   summary_id: string;
 }
 
-// Import types from Supabase if needed
-import type { Database } from "@/integrations/supabase/types";
-type Json = Database["public"]["Tables"]["quiz_questions"]["Row"]["incorrect_answers"];
-
 const ViewSummary = () => {
   const { id } = useParams<{ id: string }>();
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -54,14 +50,41 @@ const ViewSummary = () => {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingInterval, setProcessingIntervalState] = useState<number | null>(null);
   const navigate = useNavigate();
+
+  const startProgressSimulation = () => {
+    if (processingInterval) {
+      window.clearInterval(processingInterval);
+    }
+    
+    setProcessingProgress(0);
+    
+    const interval = window.setInterval(() => {
+      setProcessingProgress(prev => {
+        const increment = prev < 50 ? 2 : prev < 80 ? 1 : 0.5;
+        const newProgress = Math.min(prev + increment, 95);
+        return newProgress;
+      });
+    }, 3000);
+    
+    setProcessingIntervalState(interval);
+  };
+
+  const stopProgressSimulation = () => {
+    if (processingInterval) {
+      window.clearInterval(processingInterval);
+      setProcessingIntervalState(null);
+    }
+    setProcessingProgress(100);
+  };
 
   const fetchData = async () => {
     try {
       setLoading(true);
       if (!id) return;
 
-      // Fetch transcript
       const { data: transcriptData, error: transcriptError } = await supabase
         .from('transcripts')
         .select('*')
@@ -71,7 +94,10 @@ const ViewSummary = () => {
       if (transcriptError) throw transcriptError;
       setTranscript(transcriptData);
 
-      // Fetch summary
+      if (transcriptData.status === 'pending') {
+        startProgressSimulation();
+      }
+
       const { data: summaryData, error: summaryError } = await supabase
         .from('summaries')
         .select('*')
@@ -79,11 +105,11 @@ const ViewSummary = () => {
         .single();
         
       if (summaryError && summaryError.code !== 'PGRST116') throw summaryError;
-      setSummary(summaryData || null);
-
-      // If summary exists, fetch exercises (previously key concepts) and quiz questions
+      
       if (summaryData) {
-        // Fetch exercises (previously key concepts)
+        setSummary(summaryData);
+        stopProgressSimulation();
+        
         const { data: exercisesData, error: exercisesError } = await supabase
           .from('key_concepts')
           .select('*')
@@ -92,7 +118,6 @@ const ViewSummary = () => {
         if (exercisesError) throw exercisesError;
         setExercises(exercisesData || []);
 
-        // Fetch quiz questions
         const { data: quizData, error: quizError } = await supabase
           .from('quiz_questions')
           .select('*')
@@ -100,7 +125,6 @@ const ViewSummary = () => {
           
         if (quizError) throw quizError;
         
-        // Transform the quiz data to match the expected QuizQuestion type
         if (quizData) {
           const formattedQuizQuestions: QuizQuestion[] = quizData.map(q => ({
             id: q.id,
@@ -116,6 +140,8 @@ const ViewSummary = () => {
           
           setQuizQuestions(formattedQuizQuestions);
         }
+      } else {
+        setSummary(null);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -127,13 +153,27 @@ const ViewSummary = () => {
 
   useEffect(() => {
     fetchData();
-  }, [id]);
+    
+    let refreshInterval: number | null = null;
+    
+    if (transcript?.status === 'pending' && !summary) {
+      refreshInterval = window.setInterval(() => {
+        fetchData();
+      }, 30000);
+    }
+    
+    return () => {
+      if (refreshInterval) {
+        window.clearInterval(refreshInterval);
+      }
+      if (processingInterval) {
+        window.clearInterval(processingInterval);
+      }
+    };
+  }, [id, summary]);
 
-  // This function simulates summary generation
-  // In a real app, this would be done with an AI service
   const createDummySummary = async (transcript: Transcript) => {
     try {
-      // Create dummy summary
       const { data: summaryData, error: summaryError } = await supabase
         .from('summaries')
         .insert({
@@ -146,7 +186,6 @@ const ViewSummary = () => {
       if (summaryError) throw summaryError;
       setSummary(summaryData);
       
-      // Create dummy exercises (previously key concepts)
       await supabase
         .from('key_concepts')
         .insert([
@@ -155,7 +194,6 @@ const ViewSummary = () => {
           { summary_id: summaryData.id, content: "Exercise 3: Apply the concepts to a real-world scenario" },
         ]);
         
-      // Create dummy quiz question
       await supabase
         .from('quiz_questions')
         .insert({
@@ -167,7 +205,6 @@ const ViewSummary = () => {
         
       toast.success("Summary generated");
       
-      // Refresh the data
       fetchData();
     } catch (error) {
       console.error('Error creating dummy data:', error);
@@ -203,7 +240,7 @@ const ViewSummary = () => {
                 <div className="flex items-center justify-between p-4">
                   <h1 className="text-2xl font-bold">{transcript.title}</h1>
                   <div className="flex items-center gap-2">
-                    {!summary && (
+                    {!summary && transcript.status !== 'pending' && (
                       <Button 
                         onClick={() => createDummySummary(transcript)}
                         className="explainly-gradient-bg"
@@ -244,6 +281,24 @@ const ViewSummary = () => {
                   exercises={exercises.map(ex => ex.content)}
                   quizQuestions={quizQuestions}
                 />
+              ) : transcript.status === 'pending' ? (
+                <div className="flex flex-col items-center justify-center h-full p-6">
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 max-w-md w-full">
+                    <div className="flex items-center justify-center mb-4">
+                      <Clock className="h-12 w-12 text-explainly-blue animate-pulse" />
+                    </div>
+                    <h2 className="text-xl font-semibold text-center mb-4">Processing Your Transcript</h2>
+                    <p className="text-explainly-text-gray text-center mb-6">
+                      We're analyzing your transcript to generate a summary, exercises, and quiz questions. This typically takes about 2 minutes.
+                    </p>
+                    <div className="space-y-2">
+                      <Progress value={processingProgress} className="h-2" />
+                      <p className="text-sm text-explainly-text-gray text-center">
+                        {processingProgress < 100 ? 'Processing...' : 'Almost done!'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full p-6">
                   <h2 className="text-xl font-semibold mb-4">No Summary Generated Yet</h2>

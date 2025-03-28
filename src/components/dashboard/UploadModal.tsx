@@ -1,5 +1,6 @@
 
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ const UploadModal: React.FC<UploadModalProps> = ({
   onOpenChange,
   onUploadSuccess 
 }) => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
@@ -135,6 +137,9 @@ const UploadModal: React.FC<UploadModalProps> = ({
       onOpenChange(false);
       setFile(null);
       setTitle("");
+      
+      // Redirect to the new transcript's summary page
+      navigate(`/dashboard/summary/${transcriptData.id}`);
     } catch (error: any) {
       console.error('Upload error:', error);
       toast.error(error.message || "Failed to upload transcript");
